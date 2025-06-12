@@ -1,6 +1,5 @@
 #include "deepzoom.hpp"
 #include <iostream>
-#include <memory>
 
 int main(int argc, char* argv[])
 {
@@ -41,8 +40,12 @@ int main(int argc, char* argv[])
             std::cout << "Objective Power: " << p << std::endl;
     }
 
-    auto slide_handler = std::make_unique<DeepZoomGenerator>(slide, 254, 1);
-    std::cout << slide_handler->get_dzi("jpeg") << std::endl;
+    DeepZoomGenerator slide_handler(slide, 254, 1);
+    std::cout << slide_handler.get_dzi("jpeg") << std::endl;
+
+    // notice: the slide must be closed after use
+    openslide_close(slide);
+    slide = nullptr;
 
     return 0;
 }

@@ -74,11 +74,6 @@ DeepZoomGenerator::DeepZoomGenerator(openslide_t* slide, int tile_size, int over
     if (auto bg_color = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR); bg_color)
         m_background_color = std::string("#") + bg_color;
 }
-DeepZoomGenerator::~DeepZoomGenerator()
-{
-    openslide_close(m_slide);
-    m_slide = nullptr;
-}
 
 int DeepZoomGenerator::level_count() const
 {

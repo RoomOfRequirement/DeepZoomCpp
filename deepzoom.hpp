@@ -11,7 +11,13 @@ class DeepZoomGenerator
 {
 public:
     DeepZoomGenerator(openslide_t* slide, int tile_size = 254, int overlap = 1, bool limit_bounds = false);
-    ~DeepZoomGenerator();
+    ~DeepZoomGenerator() = default;
+
+    DeepZoomGenerator(DeepZoomGenerator const&) = delete;
+    DeepZoomGenerator& operator=(DeepZoomGenerator const&) = delete;
+
+    DeepZoomGenerator(DeepZoomGenerator&&) = default;
+    DeepZoomGenerator& operator=(DeepZoomGenerator&&) = default;
 
     // deepzoom levels
     int level_count() const;
