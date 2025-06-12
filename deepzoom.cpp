@@ -4,8 +4,8 @@
 #include <numeric>
 #include <cmath>
 
-DeepZoomGenerator::DeepZoomGenerator(openslide_t* slide, int tile_size, int overlap)
-    : m_slide(slide), m_tile_size(tile_size), m_overlap(overlap)
+DeepZoomGenerator::DeepZoomGenerator(openslide_t* slide, int tile_size, int overlap, bool limit_bounds)
+    : m_slide(slide), m_tile_size(tile_size), m_overlap(overlap), m_limit_bounds(limit_bounds)
 {
     if (auto mpp_x = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_MPP_X); mpp_x)
         if (auto mpp_y = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_MPP_Y); mpp_y)
@@ -18,6 +18,27 @@ DeepZoomGenerator::DeepZoomGenerator(openslide_t* slide, int tile_size, int over
     {
         openslide_get_level_dimensions(m_slide, l, &w, &h);
         m_l_dimensions.push_back({w, h});
+    }
+
+    if (m_limit_bounds)
+    {
+        if (auto const* p = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_X); p)
+            m_l0_offset.first = std::strtol(p, nullptr, 10);
+        if (auto const* p = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_Y); p)
+            m_l0_offset.second = std::strtol(p, nullptr, 10);
+
+        auto l0_lim = m_l_dimensions[0];
+        std::pair<double, double> size_scale{1., 1.};
+        if (auto const* p = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH); p)
+            size_scale.first = std::strtol(p, nullptr, 10) / static_cast<double>(l0_lim.first);
+        if (auto const* p = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT); p)
+            size_scale.second = std::strtol(p, nullptr, 10) / static_cast<double>(l0_lim.second);
+
+        for (auto& d : m_l_dimensions)
+        {
+            d.first = static_cast<int64_t>(std::ceil(d.first * size_scale.first));
+            d.second = static_cast<int64_t>(std::ceil(d.second * size_scale.second));
+        }
     }
 
     m_dzl_dimensions.push_back(m_l_dimensions[0]);
@@ -80,7 +101,7 @@ int64_t DeepZoomGenerator::tile_count() const
                        [](auto s, auto const& d) { return s + d.first * d.second; });
 }
 
-std::tuple<int, int, std::vector<uint8_t>> DeepZoomGenerator::get_tile(int dz_level, int col, int row)
+std::tuple<int, int, std::vector<uint8_t>> DeepZoomGenerator::get_tile(int dz_level, int col, int row) const
 {
     auto [info, z_size] = _get_tile_info(dz_level, col, row);
     auto const& [l0_location, slide_level, l_size] = info;
@@ -107,12 +128,12 @@ std::tuple<int, int, std::vector<uint8_t>> DeepZoomGenerator::get_tile(int dz_le
 }
 
 std::tuple<std::pair<int64_t, int64_t>, int, std::pair<int64_t, int64_t>> DeepZoomGenerator::get_tile_coordinates(
-    int dz_level, int col, int row)
+    int dz_level, int col, int row) const
 {
     return std::get<0>(_get_tile_info(dz_level, col, row));
 }
 
-std::pair<int64_t, int64_t> DeepZoomGenerator::get_tile_dimensions(int dz_level, int col, int row)
+std::pair<int64_t, int64_t> DeepZoomGenerator::get_tile_dimensions(int dz_level, int col, int row) const
 {
     return std::get<1>(_get_tile_info(dz_level, col, row));
 }
@@ -144,7 +165,7 @@ std::pair<std::tuple<std::pair<int64_t, int64_t>, // l0_location
                      >,
           std::pair<int64_t, int64_t> // z_size
           >
-DeepZoomGenerator::_get_tile_info(int dz_level, int col, int row)
+DeepZoomGenerator::_get_tile_info(int dz_level, int col, int row) const
 {
     // assert((dz_level >= 0 && dz_level < m_dz_levels), "invalid dz level");
     // assert((col >= 0 && col < m_t_dimensions[dz_level].first), "invalid dz col");
@@ -163,8 +184,8 @@ DeepZoomGenerator::_get_tile_info(int dz_level, int col, int row)
     auto l_location = std::make_pair(l_dz_downsample * (z_location.first - z_overlap_tl.first),
                                      l_dz_downsample * (z_location.second - z_overlap_tl.second));
     auto l_downsample = m_level_downsamples[slide_level];
-    auto l0_location = std::make_pair(static_cast<int64_t>(l_downsample * l_location.first),
-                                      static_cast<int64_t>(l_downsample * l_location.second));
+    auto l0_location = std::make_pair(static_cast<int64_t>(l_downsample * l_location.first) + m_l0_offset.first,
+                                      static_cast<int64_t>(l_downsample * l_location.second) + m_l0_offset.second);
     auto l_size = std::make_pair(
         std::min(static_cast<int64_t>(std::ceil(l_dz_downsample * z_size.first)),
                  m_l_dimensions[slide_level].first - static_cast<int64_t>(std::ceil(l_location.first))),
