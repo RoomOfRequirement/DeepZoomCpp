@@ -23,6 +23,8 @@ else()
     message(STATUS "openslide include dirs: ${openslide_INCLUDE_DIRS}")
 endif()
 
+find_package(JPEG REQUIRED)
+
 add_executable(${PROJECT_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/deepzoom.cpp
@@ -32,6 +34,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${openslide_INCLUDE_DIRS})
 
 target_link_libraries(${PROJECT_NAME}
     PRIVATE ${openslide}
+    PRIVATE JPEG::JPEG
 )
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

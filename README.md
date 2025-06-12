@@ -17,7 +17,8 @@ Port of [`openslide-python`](https://github.com/openslide/openslide-python)'s [`
 > - Zeiss (.czi)
 > - Generic tiled TIFF (.tif)
 
-You need to compile the `openslide` library first or download the pre-compiled [binaries](https://openslide.org/download/).
+The `DeepZoomGenerator` only depends on `openslide`, you need to compile the `openslide` library first or download the pre-compiled [binaries](https://openslide.org/download/).
+The demo `main.cpp` has additional dependency - `libjpeg-turbo` to perform JPEG encoding. To test the demo, you can download some slides from `openslide`'s [test data](https://openslide.cs.cmu.edu/download/openslide-testdata/) or from `openslide`'s [online demo](https://openslide.org/demo/).
 
 Please notice the `openslide`'s license is LGPL-2.1.
 
