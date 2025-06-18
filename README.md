@@ -27,3 +27,5 @@ Current `openslide` version: 4.0.0.8.
 ## Usage
 
 I used it in my [`QtTilesViewer`](https://github.com/RoomOfAnalysis/QtTrials/tree/main/QtTilesViewer) demo project (`QtWebEngine` + `OpenSeaDragon`, communicated through `QWebChannel`), since i don't want to setup a server to serve the tiles.
+
+If you want to support more formats, you may want to try my another [`DeepzoomGenerator`](https://github.com/RoomOfAnalysis/bioimread/blob/main/qpwrapper/deepzoom.hpp) which based on `bioformats`.

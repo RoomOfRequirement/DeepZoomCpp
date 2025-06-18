@@ -9,7 +9,7 @@ DeepZoomGenerator::DeepZoomGenerator(openslide_t* slide, int tile_size, int over
 {
     if (auto mpp_x = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_MPP_X); mpp_x)
         if (auto mpp_y = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_MPP_Y); mpp_y)
-            m_mpp = (std::strtof(mpp_x, nullptr) + std::strtof(mpp_y, nullptr)) / 2.f;
+            m_mpp = (std::strtod(mpp_x, nullptr) + std::strtod(mpp_y, nullptr)) / 2.;
 
     m_levels = openslide_get_level_count(m_slide);
     m_l_dimensions.reserve(m_levels);
@@ -96,7 +96,7 @@ int64_t DeepZoomGenerator::tile_count() const
                        [](auto s, auto const& d) { return s + d.first * d.second; });
 }
 
-std::tuple<int, int, std::vector<uint8_t>> DeepZoomGenerator::get_tile(int dz_level, int col, int row) const
+std::tuple<int64_t, int64_t, std::vector<uint8_t>> DeepZoomGenerator::get_tile(int dz_level, int col, int row) const
 {
     auto [info, z_size] = _get_tile_info(dz_level, col, row);
     auto const& [l0_location, slide_level, l_size] = info;
@@ -152,6 +152,11 @@ std::string DeepZoomGenerator::get_dzi(std::string const& format) const
            std::to_string(width) + "\"\n \
   />\n \
 </Image>";
+}
+
+double DeepZoomGenerator::get_mpp() const
+{
+    return m_mpp;
 }
 
 std::pair<std::tuple<std::pair<int64_t, int64_t>, // l0_location
