@@ -30,7 +30,7 @@ namespace dz_qupath
         int level_count() const;
         // tile dimensions <col, row>
         std::vector<std::pair<int, int>> level_tiles() const;
-        // deepzoom level dimensions <col, row>
+        // deepzoom level dimensions <x, y>
         std::vector<std::pair<int, int>> level_dimensions() const;
         int tile_count() const;
         // PNG bytes

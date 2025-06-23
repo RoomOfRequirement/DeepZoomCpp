@@ -26,7 +26,7 @@ namespace dz_openslide
         int level_count() const;
         // tile dimensions <col, row>
         std::vector<std::pair<int64_t, int64_t>> level_tiles() const;
-        // deepzoom level dimensions <col, row>
+        // deepzoom level dimensions <x, y>
         std::vector<std::pair<int64_t, int64_t>> level_dimensions() const;
         int64_t tile_count() const;
         // <width, height, ARGB_Premultiplied_bytes>

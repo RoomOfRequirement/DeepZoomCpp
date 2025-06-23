@@ -9,3 +9,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_subdirectory(dz_openslide)
 add_subdirectory(dz_qupath)
+add_subdirectory(dz_bench)
