@@ -2,6 +2,12 @@
 
 ## DeepZoomCpp
 
+It consists of two `DeepZoomGenerator` implementations:
+  - `dz_openslide/DeepZoomGenerator` based on `openslide`
+  - `dz_qupath/DeepZoomGenerator` based on `QuPath/Bioformats`
+
+### `dz_openslide/DeepZoomGenerator`
+
 Port of [`openslide-python`](https://github.com/openslide/openslide-python)'s [`DeepZoomGenerator`](https://github.com/openslide/openslide-python/blob/main/openslide/deepzoom.py) for C++.
 
 > OpenSlide can read virtual slides in several formats:
@@ -24,8 +30,20 @@ Please notice the `openslide`'s license is LGPL-2.1.
 
 Current `openslide` version: 4.0.0.8.
 
+### `dz_qupath/DeepZoomGenerator`
+
+Implement similar functionality as `openslide`'s `DeepZoomGenerator` with [`QuPath`](https://github.com/qupath/qupath) and [`Bioformats`](https://github.com/ome/bioformats) to support more image formats.
+
+> Bio-Formats supports [more than a hundred file formats](https://bio-formats.readthedocs.io/en/stable/supported-formats.html).
+
+The necessary jars are included in the `dz_qupath/qupath_jars`.
+
+Please notice the `QuPath`'s license is GPLv3.
+
+Current `QuPath` version is `0.6.0-rc5`, `Bioformats` version is `8.1.1`.
+
 ## Usage
 
-I used it in my [`QtTilesViewer`](https://github.com/RoomOfAnalysis/QtTrials/tree/main/QtTilesViewer) demo project (`QtWebEngine` + `OpenSeaDragon`, communicated through `QWebChannel`), since i don't want to setup a server to serve the tiles.
+I used `openslide/DeepZoomGenerator` in my [`QtTilesViewer`](https://github.com/RoomOfAnalysis/QtTrials/tree/main/QtTilesViewer) demo project (`QtWebEngine` + `OpenSeaDragon`, communicated through `QWebChannel`), since i don't want to setup a server to serve the tiles.
 
-If you want to support more formats, you may want to try my another [`DeepzoomGenerator`](https://github.com/RoomOfAnalysis/bioimread/blob/main/qpwrapper/deepzoom.hpp) which based on `bioformats`.
+And used `qupath/DeepZoomGenerator` in my [`bioimread/tilesviewer`](https://github.com/RoomOfAnalysis/bioimread/blob/main/qpwrapper/tilesviewer.cpp) to support more formats.

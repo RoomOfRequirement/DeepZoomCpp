@@ -4,6 +4,8 @@
 #include <numeric>
 #include <cmath>
 
+using namespace dz_qupath;
+
 DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int overlap)
     : m_tile_size(tile_size), m_overlap(overlap)
 {

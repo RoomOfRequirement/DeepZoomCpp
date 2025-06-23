@@ -6,6 +6,8 @@
 #include <numeric>
 #include <cmath>
 
+using namespace dz_openslide;
+
 DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int overlap, bool limit_bounds)
     : m_tile_size(tile_size), m_overlap(overlap), m_limit_bounds(limit_bounds)
 {

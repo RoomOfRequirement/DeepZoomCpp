@@ -5,6 +5,8 @@
 #include <cassert>
 #include <iostream>
 
+using namespace dz_qupath;
+
 struct Reader::impl
 {
     JVMWrapper* jvm_wrapper = nullptr;

@@ -4,6 +4,8 @@
 
 int main(int argc, char* argv[])
 {
+    using namespace dz_qupath;
+
     if (argc != 2)
     {
         std::cerr << "Usage: " << argv[0] << " <path_to_image_file>" << std::endl;

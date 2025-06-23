@@ -7,6 +7,8 @@ std::string Base64_Encode(unsigned char const* src, size_t len);
 
 int main(int argc, char* argv[])
 {
+    using namespace dz_openslide;
+
     if (argc < 2)
     {
         std::cerr << "Usage: " << argv[0] << ": <slide path>" << std::endl;
