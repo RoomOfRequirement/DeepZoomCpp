@@ -1,23 +1,25 @@
 #pragma once
 
-#include <openslide.h>
-
 #include <cstdint>
 #include <vector>
 #include <string>
 #include <utility>
 
+struct _openslide;
+
 class DeepZoomGenerator
 {
 public:
-    DeepZoomGenerator(openslide_t* slide, int tile_size = 254, int overlap = 1, bool limit_bounds = false);
-    ~DeepZoomGenerator() = default;
+    DeepZoomGenerator(std::string filepath, int tile_size = 254, int overlap = 1, bool limit_bounds = false);
+    ~DeepZoomGenerator();
 
     DeepZoomGenerator(DeepZoomGenerator const&) = delete;
     DeepZoomGenerator& operator=(DeepZoomGenerator const&) = delete;
 
     DeepZoomGenerator(DeepZoomGenerator&&) = default;
     DeepZoomGenerator& operator=(DeepZoomGenerator&&) = default;
+
+    bool is_valid() const;
 
     // deepzoom levels
     int level_count() const;
@@ -49,7 +51,7 @@ private:
                      >;
 
 private:
-    openslide_t* m_slide = nullptr;
+    _openslide* m_slide = nullptr;
     int64_t m_tile_size =
         512; // the width and height of a single tile, for best viewer performance, tile_size + 2 * overlap should be a power of two
     int m_overlap = 1;                             // the number of extra pixels to add to each interior edge of a tile

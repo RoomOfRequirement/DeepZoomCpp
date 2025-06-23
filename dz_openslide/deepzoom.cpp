@@ -1,14 +1,23 @@
 #include "deepzoom.hpp"
 
+#include <openslide.h>
+
 #include <memory>
 #include <numeric>
 #include <cmath>
 
-DeepZoomGenerator::DeepZoomGenerator(openslide_t* slide, int tile_size, int overlap, bool limit_bounds)
-    : m_slide(slide), m_tile_size(tile_size), m_overlap(overlap), m_limit_bounds(limit_bounds)
+DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int overlap, bool limit_bounds)
+    : m_tile_size(tile_size), m_overlap(overlap), m_limit_bounds(limit_bounds)
 {
-    if (auto mpp_x = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_MPP_X); mpp_x)
-        if (auto mpp_y = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_MPP_Y); mpp_y)
+    m_slide = openslide_open(filepath.c_str());
+    if (!m_slide)
+    {
+        printf("Failed to open slide: %s\n", openslide_get_error(m_slide));
+        return;
+    }
+
+    if (auto mpp_x = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_MPP_X); mpp_x)
+        if (auto mpp_y = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_MPP_Y); mpp_y)
             m_mpp = (std::strtod(mpp_x, nullptr) + std::strtod(mpp_y, nullptr)) / 2.;
 
     m_levels = openslide_get_level_count(m_slide);
@@ -22,16 +31,16 @@ DeepZoomGenerator::DeepZoomGenerator(openslide_t* slide, int tile_size, int over
 
     if (m_limit_bounds)
     {
-        if (auto const* p = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_X); p)
+        if (auto const* p = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_X); p)
             m_l0_offset.first = std::strtol(p, nullptr, 10);
-        if (auto const* p = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_Y); p)
+        if (auto const* p = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_Y); p)
             m_l0_offset.second = std::strtol(p, nullptr, 10);
 
         auto l0_lim = m_l_dimensions[0];
         std::pair<double, double> size_scale{1., 1.};
-        if (auto const* p = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH); p)
+        if (auto const* p = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_WIDTH); p)
             size_scale.first = std::strtol(p, nullptr, 10) / static_cast<double>(l0_lim.first);
-        if (auto const* p = openslide_get_property_value(slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT); p)
+        if (auto const* p = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_BOUNDS_HEIGHT); p)
             size_scale.second = std::strtol(p, nullptr, 10) / static_cast<double>(l0_lim.second);
 
         for (auto& d : m_l_dimensions)
@@ -73,6 +82,20 @@ DeepZoomGenerator::DeepZoomGenerator(openslide_t* slide, int tile_size, int over
 
     if (auto bg_color = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR); bg_color)
         m_background_color = std::string("#") + bg_color;
+}
+
+DeepZoomGenerator::~DeepZoomGenerator()
+{
+    if (m_slide)
+    {
+        openslide_close(m_slide);
+        m_slide = nullptr;
+    }
+}
+
+bool DeepZoomGenerator::is_valid() const
+{
+    return m_slide != nullptr;
 }
 
 int DeepZoomGenerator::level_count() const
