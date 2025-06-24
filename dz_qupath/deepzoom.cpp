@@ -6,8 +6,9 @@
 
 using namespace dz_qupath;
 
-DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int overlap)
-    : m_tile_size(tile_size), m_overlap(overlap)
+DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int overlap, ImageFormat format,
+                                     float quality)
+    : m_tile_size(tile_size), m_overlap(overlap), m_format(format), m_quality(quality)
 {
     m_reader = std::make_unique<Reader>(filepath);
     if (!m_reader->isValid())
@@ -92,7 +93,8 @@ std::vector<unsigned char> DeepZoomGenerator::get_tile(int dz_level, int col, in
 
     return m_reader->readRegion(m_level_0_dz_downsamples[dz_level], xx, yy,
                                 static_cast<int>(std::ceil(width * level_downsample)),
-                                static_cast<int>(std::ceil(height * level_downsample)), 0, 0);
+                                static_cast<int>(std::ceil(height * level_downsample)), 0, 0,
+                                static_cast<Reader::ImageFormat>(m_format), m_quality);
 }
 
 std::tuple<std::pair<int, int>, int, std::pair<int, int>> DeepZoomGenerator::get_tile_coordinates(int dz_level, int col,
@@ -111,7 +113,8 @@ std::string DeepZoomGenerator::get_dzi() const
     auto const& [width, height] = m_l_dimensions[0];
     return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n \
 <Image xmlns = \"http://schemas.microsoft.com/deepzoom/2008\"\n \
-  Format=\"png\"\n \
+  Format=\"" +
+           std::string((m_format == ImageFormat::PNG) ? "png" : "jpg") + "\"\n \
   Overlap=\"" +
            std::to_string(m_overlap) + "\"\n \
   TileSize=\"" +

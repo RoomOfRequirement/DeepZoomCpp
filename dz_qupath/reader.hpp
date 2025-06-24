@@ -23,6 +23,12 @@ namespace dz_qupath
             DOUBLE,
         };
 
+        enum class ImageFormat : int
+        {
+            PNG = 0,
+            JPEG,
+        };
+
         static std::string pixelTypeStr(PixelType pixelType);
         static int getBytesPerPixel(PixelType pixelType);
 
@@ -67,12 +73,17 @@ namespace dz_qupath
         int getPreferredResolutionLevel(double downsample) const;
         double getPreferredDownsampleFactor(double downsample) const;
         // PNG bytes
-        std::vector<unsigned char> readRegion(double downsample, int x, int y, int w, int h, int z, int t) const;
-        std::vector<unsigned char> readRegion(int level, int x, int y, int w, int h, int z, int t) const;
-        std::vector<unsigned char> readTile(int level, int x, int y, int w, int h, int z, int t) const;
-        std::vector<unsigned char> getDefaultThumbnail(int z, int t) const;
+        std::vector<unsigned char> readRegion(double downsample, int x, int y, int w, int h, int z, int t,
+                                              ImageFormat format = ImageFormat::PNG, float quality = 0.75f) const;
+        std::vector<unsigned char> readRegion(int level, int x, int y, int w, int h, int z, int t,
+                                              ImageFormat format = ImageFormat::PNG, float quality = 0.75f) const;
+        std::vector<unsigned char> readTile(int level, int x, int y, int w, int h, int z, int t,
+                                            ImageFormat format = ImageFormat::PNG, float quality = 0.75f) const;
+        std::vector<unsigned char> getDefaultThumbnail(int z, int t, ImageFormat format = ImageFormat::PNG,
+                                                       float quality = 0.75f) const;
         std::vector<std::string> getAssociatedImageNames() const;
-        std::vector<unsigned char> getAssociatedImage(std::string const& name) const;
+        std::vector<unsigned char> getAssociatedImage(std::string const& name, ImageFormat format = ImageFormat::PNG,
+                                                      float quality = 0.75f) const;
 
     private:
         struct impl;

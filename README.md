@@ -47,3 +47,7 @@ Current `QuPath` version is `0.6.0-rc5`, `Bioformats` version is `8.1.1`.
 I used `openslide/DeepZoomGenerator` in my [`QtTilesViewer`](https://github.com/RoomOfAnalysis/QtTrials/tree/main/QtTilesViewer) demo project (`QtWebEngine` + `OpenSeaDragon`, communicated through `QWebChannel`), since i don't want to setup a server to serve the tiles.
 
 And used `qupath/DeepZoomGenerator` in my [`bioimread/tilesviewer`](https://github.com/RoomOfAnalysis/bioimread/blob/main/qpwrapper/tilesviewer.cpp) to support more formats.
+
+## Benchmarks
+
+Please see [here](dz_bench/bench.md).
