@@ -19,6 +19,7 @@ else()
 endif()
 
 find_package(JPEG REQUIRED)
+find_package(PNG REQUIRED)
 
 add_library(${PROJECT_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/deepzoom.cpp
@@ -36,6 +37,7 @@ add_executable(${PROJECT_NAME}_test
 target_link_libraries(${PROJECT_NAME}_test
     PRIVATE ${PROJECT_NAME}
     PRIVATE JPEG::JPEG
+    PRIVATE PNG::PNG
 )
 
 add_custom_command(TARGET ${PROJECT_NAME}_test POST_BUILD

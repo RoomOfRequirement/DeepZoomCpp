@@ -1,8 +1,12 @@
 #include "deepzoom.hpp"
 #include <iostream>
+#include <algorithm>
 #include <jpeglib.h>
+#include <png.h>
 
 std::string ARGB32_To_JPEG_Base64(std::vector<uint8_t> const& argb_bytes, int width, int height, int quality = 75);
+std::string ARGB32_To_PNG_Base64(std::vector<uint8_t> const& argb_bytes, int width, int height,
+                                 int compression_level = 3 /*0-9*/);
 std::string Base64_Encode(unsigned char const* src, size_t len);
 
 int main(int argc, char* argv[])
@@ -11,7 +15,8 @@ int main(int argc, char* argv[])
 
     if (argc < 2)
     {
-        std::cerr << "Usage: " << argv[0] << ": <slide path>" << std::endl;
+        std::cerr << "Usage: " << argv[0]
+                  << ": <slide path> <format(jpg/png, default=jpg)> <quality(0-100, default=75)>" << std::endl;
         return -1;
     }
 
@@ -26,8 +31,23 @@ int main(int argc, char* argv[])
 
     auto const& [width, height, argb_bytes] = slide_handler.get_tile(slide_handler.level_count() / 2, 0, 0);
     std::cout << "Tile Size: " << width << "x" << height << std::endl;
+    // std::cout << "Tile Bytes: " << argb_bytes.size() << std::endl;
     // you can check the base64 string in a browser by pasting it into the address bar
-    std::cout << ARGB32_To_JPEG_Base64(argb_bytes, width, height) << std::endl;
+    std::string format = "jpg";
+    int quality = 75;
+    if (argc > 2)
+    {
+        if (std::string(argv[2]) == "png") format = "png";
+        if (argc > 3) quality = std::stoi(argv[3]);
+
+        if (format == "jpg")
+            std::cout << ARGB32_To_JPEG_Base64(argb_bytes, width, height, quality) << std::endl;
+        else if (format == "png")
+            std::cout << ARGB32_To_PNG_Base64(argb_bytes, width, height, std::clamp((100 - quality) / 10, 0, 9))
+                      << std::endl;
+        else
+            std::cerr << "Unknown format: " << argv[2] << ". Supported formats: png, jpg." << std::endl;
+    }
 
     return 0;
 }
@@ -77,11 +97,69 @@ std::string ARGB32_To_JPEG_Base64(std::vector<uint8_t> const& argb_bytes, int wi
     jpeg_finish_compress(&cinfo);
     jpeg_destroy_compress(&cinfo);
 
+    // std::cout << "ARGB32_To_JPEG_Base64 - Encoded size: " << encoded_size << std::endl;
+
     auto str = "data:image/jpg;base64," + Base64_Encode(mem_buffer, encoded_size);
 
     free(mem_buffer);
 
     return str;
+}
+
+std::string ARGB32_To_PNG_Base64(std::vector<uint8_t> const& argb_bytes, int width, int height, int compression_level)
+{
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png_ptr) return {};
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr)
+    {
+        png_destroy_write_struct(&png_ptr, NULL);
+        return {};
+    }
+    if (setjmp(png_jmpbuf(png_ptr)))
+    {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        return {};
+    }
+
+    // since the argb_bytes is premultiplied ARGB, we can just discard the alpha and convert it to RGB
+    png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_set_compression_level(png_ptr, compression_level);
+
+    std::vector<uint8_t> buffer;
+    buffer.reserve(width * height * 4);
+    auto write_callback = [](png_structp png_ptr, png_bytep data, png_size_t length) {
+        auto* p = static_cast<std::vector<uint8_t>*>(png_get_io_ptr(png_ptr));
+        p->insert(p->end(), data, data + length);
+    };
+    png_set_write_fn(png_ptr, &buffer, write_callback, nullptr);
+
+    png_write_info(png_ptr, info_ptr);
+
+    std::vector<uint8_t> rgba(width * 3);
+    for (int i = 0; i < height; i++)
+    {
+        int n = width;
+        uint8_t const* argb = argb_bytes.data() + i * width * 4 - 1;
+        uint8_t* dest = rgba.data();
+        while (--n >= 0)
+        {
+            // swap and convert ARGB to RGB
+            dest[0] = argb[3];
+            dest[1] = argb[2];
+            dest[2] = argb[1];
+            dest += 3;
+            argb += 4;
+        }
+        png_write_row(png_ptr, rgba.data());
+    }
+    png_write_end(png_ptr, info_ptr);
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+
+    // std::cout << "ARGB32_To_PNG_Base64 - Encoded size: " << buffer.size() << std::endl;
+
+    return "data:image/png;base64," + Base64_Encode((unsigned char const*)buffer.data(), buffer.size());
 }
 
 /*

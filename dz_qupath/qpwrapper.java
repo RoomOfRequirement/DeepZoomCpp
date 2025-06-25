@@ -463,6 +463,7 @@ public class qpwrapper implements AutoCloseable {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
+            // javax.imageio.ImageIO not support png compression level
             if (format.equals("PNG")) {
                 if (image.getType() != BufferedImage.TYPE_INT_ARGB) {
                     BufferedImage buffer = new BufferedImage(image.getWidth(null),
