@@ -28,6 +28,8 @@ add_library(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PUBLIC ${openslide_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME}
     PUBLIC ${openslide}
+    PUBLIC JPEG::JPEG
+    PUBLIC PNG::PNG
 )
 
 add_executable(${PROJECT_NAME}_test
@@ -36,8 +38,6 @@ add_executable(${PROJECT_NAME}_test
 )
 target_link_libraries(${PROJECT_NAME}_test
     PRIVATE ${PROJECT_NAME}
-    PRIVATE JPEG::JPEG
-    PRIVATE PNG::PNG
 )
 
 add_custom_command(TARGET ${PROJECT_NAME}_test POST_BUILD

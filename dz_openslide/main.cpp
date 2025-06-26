@@ -1,6 +1,7 @@
 #include "deepzoom.hpp"
 #include <iostream>
 #include <algorithm>
+#include <memory>
 #include <jpeglib.h>
 #include <png.h>
 
@@ -20,16 +21,35 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    DeepZoomGenerator slide_handler(argv[1], 254, 1);
+    std::string format = "jpg";
+    int quality = 75;
+    if (argc > 2)
+    {
+        if (std::string(argv[2]) == "png") format = "png";
+        if (argc > 3) quality = std::stoi(argv[3]);
+    }
+
+    DeepZoomGenerator slide_handler(argv[1], 254, 1, false,
+                                    format == "png" ? DeepZoomGenerator::ImageFormat::PNG :
+                                                      DeepZoomGenerator::ImageFormat::JPG,
+                                    format == "png" ? std::clamp(quality / 100.f, 0.f, 1.f) : 0.75f);
     if (!slide_handler.is_valid())
     {
         std::cerr << "Failed to open slide: " << argv[1] << std::endl;
         return -1;
     }
 
-    std::cout << slide_handler.get_dzi("jpeg") << std::endl;
+    std::cout << slide_handler.get_dzi() << std::endl;
 
-    auto const& [width, height, argb_bytes] = slide_handler.get_tile(slide_handler.level_count() / 2, 0, 0);
+    auto const& tile = slide_handler.get_tile(slide_handler.level_count() / 2, 0, 0);
+    std::cout << "data:image/" + format + ";base64," + Base64_Encode(tile.data(), tile.size()) << std::endl;
+
+    /*
+    auto const& [width, height, argb_bytes] = slide_handler.get_tile_bytes(slide_handler.level_count() / 2, 0, 0);
+    std::cout << ARGB32_To_JPEG_Base64(argb_bytes, width, height, 75) << std::endl;
+    std::cout << ARGB32_To_PNG_Base64(argb_bytes, width, height) << std::endl;
+
+    auto const& [width, height, argb_bytes] = slide_handler.get_tile_bytes(slide_handler.level_count() / 2, 0, 0);
     std::cout << "Tile Size: " << width << "x" << height << std::endl;
     // std::cout << "Tile Bytes: " << argb_bytes.size() << std::endl;
     // you can check the base64 string in a browser by pasting it into the address bar
@@ -48,6 +68,7 @@ int main(int argc, char* argv[])
         else
             std::cerr << "Unknown format: " << argv[2] << ". Supported formats: png, jpg." << std::endl;
     }
+    */
 
     return 0;
 }
@@ -78,14 +99,14 @@ std::string ARGB32_To_JPEG_Base64(std::vector<uint8_t> const& argb_bytes, int wi
     {
         int j = cinfo.next_scanline;
         int n = width;
-        uint8_t const* argb = argb_bytes.data() + j * width * 4 - 1;
+        uint8_t const* argb = argb_bytes.data() + j * width * 4;
         uint8_t* dest = rgb.data();
         while (--n >= 0)
         {
             // swap and convert ARGB to RGB
-            dest[0] = argb[3];
-            dest[1] = argb[2];
-            dest[2] = argb[1];
+            dest[0] = argb[2];
+            dest[1] = argb[1];
+            dest[2] = argb[0];
             dest += 3;
             argb += 4;
         }
@@ -141,14 +162,14 @@ std::string ARGB32_To_PNG_Base64(std::vector<uint8_t> const& argb_bytes, int wid
     for (int i = 0; i < height; i++)
     {
         int n = width;
-        uint8_t const* argb = argb_bytes.data() + i * width * 4 - 1;
+        uint8_t const* argb = argb_bytes.data() + i * width * 4;
         uint8_t* dest = rgba.data();
         while (--n >= 0)
         {
             // swap and convert ARGB to RGB
-            dest[0] = argb[3];
-            dest[1] = argb[2];
-            dest[2] = argb[1];
+            dest[0] = argb[2];
+            dest[1] = argb[1];
+            dest[2] = argb[0];
             dest += 3;
             argb += 4;
         }

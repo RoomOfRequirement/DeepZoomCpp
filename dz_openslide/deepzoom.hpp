@@ -11,7 +11,14 @@ namespace dz_openslide
     class DeepZoomGenerator
     {
     public:
-        DeepZoomGenerator(std::string filepath, int tile_size = 254, int overlap = 1, bool limit_bounds = false);
+        enum class ImageFormat : int
+        {
+            PNG = 0,
+            JPG
+        };
+
+        DeepZoomGenerator(std::string filepath, int tile_size = 254, int overlap = 1, bool limit_bounds = false,
+                          ImageFormat format = ImageFormat::JPG, float quality = 0.75f);
         ~DeepZoomGenerator();
 
         DeepZoomGenerator(DeepZoomGenerator const&) = delete;
@@ -29,8 +36,12 @@ namespace dz_openslide
         // deepzoom level dimensions <x, y>
         std::vector<std::pair<int64_t, int64_t>> level_dimensions() const;
         int64_t tile_count() const;
+        // <width, height, ARGB_Premultiplied_pixels>
+        std::tuple<int64_t, int64_t, std::vector<uint32_t>> get_tile_pixels(int dz_level, int col, int row) const;
         // <width, height, ARGB_Premultiplied_bytes>
-        std::tuple<int64_t, int64_t, std::vector<uint8_t>> get_tile(int dz_level, int col, int row) const;
+        std::tuple<int64_t, int64_t, std::vector<uint8_t>> get_tile_bytes(int dz_level, int col, int row) const;
+        // PNG/JPG bytes
+        std::vector<uint8_t> get_tile(int dz_level, int col, int row) const;
         // <<x, y>, slide_level, <width, height>>
         std::tuple<std::pair<int64_t, int64_t>, int, std::pair<int64_t, int64_t>> get_tile_coordinates(int dz_level,
                                                                                                        int col,
@@ -38,9 +49,14 @@ namespace dz_openslide
         // <width, height>
         std::pair<int64_t, int64_t> get_tile_dimensions(int dz_level, int col, int row) const;
         // XML
-        std::string get_dzi(std::string const& format) const;
+        std::string get_dzi() const;
 
         double get_mpp() const;
+
+        static std::vector<uint8_t> encode_pixels_to_jpeg(std::vector<uint32_t> const& pixels, int width, int height,
+                                                          int quality);
+        static std::vector<uint8_t> encode_pixels_to_png(std::vector<uint32_t> const& pixels, int width, int height,
+                                                         int compression_level = 3);
 
     private:
         auto _get_tile_info(int dz_level, int col, int row) const
@@ -59,6 +75,8 @@ namespace dz_openslide
         bool m_limit_bounds = false; // true to render only the non-empty slide region
         std::pair<int64_t, int64_t> m_l0_offset{0, 0}; // level 0 coordinate offset
         double m_mpp = 1e-6;
+        ImageFormat m_format = ImageFormat::JPG;
+        float m_quality = 0.75f;
         int m_levels = 0;                                          // slide levels
         int m_dz_levels = 0;                                       // deepzoom levels
         std::vector<std::pair<int64_t, int64_t>> m_l_dimensions;   // slide level dimensions

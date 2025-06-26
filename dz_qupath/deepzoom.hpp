@@ -10,7 +10,7 @@ namespace dz_qupath
     class Reader;
 
     // almost same as `dz_openslide::DeepZoomGenerator`
-    // but with different `get_tile` return type (PNG/JPG bytes instead of ARGB bytes)
+    // but without `limit_bounds`
     class DeepZoomGenerator
     {
     public:

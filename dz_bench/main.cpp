@@ -5,8 +5,10 @@
 #include <random>
 #include <iostream>
 
+#ifdef QT_GUI_LIB
 #include <QImage>
 #include <QBuffer>
+#endif
 
 #include "../dz_openslide/deepzoom.hpp"
 #include "../dz_qupath/deepzoom.hpp"
@@ -14,12 +16,29 @@
 auto BM_dz_openslide_get_tile = [](benchmark::State& state, std::string const& file_path, int tile_size, int overlap,
                                    std::vector<std::tuple<int, int, int>> const& tiles,
                                    std::string const& format = "jpg", float quality = 0.75f) {
+    auto slide = dz_openslide::DeepZoomGenerator(file_path, tile_size, overlap, false,
+                                                 (format == "jpg" ? dz_openslide::DeepZoomGenerator::ImageFormat::JPG :
+                                                                    dz_openslide::DeepZoomGenerator::ImageFormat::PNG),
+                                                 quality);
+    size_t i = 0;
+    for (auto _ : state)
+    {
+        auto [dz_level, col, row] = tiles[i++ % tiles.size()];
+        auto img = slide.get_tile(dz_level, col, row);
+        benchmark::DoNotOptimize(img);
+    }
+};
+
+#ifdef QT_GUI_LIB
+auto BM_dz_openslide_get_tile_qimg = [](benchmark::State& state, std::string const& file_path, int tile_size,
+                                        int overlap, std::vector<std::tuple<int, int, int>> const& tiles,
+                                        std::string const& format = "jpg", float quality = 0.75f) {
     auto slide = dz_openslide::DeepZoomGenerator(file_path, tile_size, overlap);
     size_t i = 0;
     for (auto _ : state)
     {
         auto [dz_level, col, row] = tiles[i++ % tiles.size()];
-        auto const& [width, height, data] = slide.get_tile(dz_level, col, row);
+        auto const& [width, height, data] = slide.get_tile_bytes(dz_level, col, row);
 
         auto img = QImage((const uchar*)data.data(), width, height, QImage::Format_ARGB32_Premultiplied);
         QByteArray byteArray;
@@ -30,6 +49,7 @@ auto BM_dz_openslide_get_tile = [](benchmark::State& state, std::string const& f
         benchmark::DoNotOptimize(byteArray);
     }
 };
+#endif
 
 auto BM_dz_qupath_get_tile = [](benchmark::State& state, std::string const& file_path, int tile_size, int overlap,
                                 std::vector<std::tuple<int, int, int>> const& tiles, std::string const& format = "jpg",
@@ -103,6 +123,24 @@ int main(int argc, char* argv[])
         ->UseRealTime()
         ->Iterations(200)
         ->Repetitions(5);
+#ifdef QT_GUI_LIB
+    benchmark::RegisterBenchmark("openslide_jpg_q" + name_surfix, BM_dz_openslide_get_tile_qimg, filepath, tile_size,
+                                 overlap, tiles, "jpg", 0.9f)
+        ->Unit(benchmark::kMillisecond)
+        ->Arg(n)
+        ->MeasureProcessCPUTime()
+        ->UseRealTime()
+        ->Iterations(200)
+        ->Repetitions(5);
+    benchmark::RegisterBenchmark("openslide_png_q" + name_surfix, BM_dz_openslide_get_tile_qimg, filepath, tile_size,
+                                 overlap, tiles, "png", 1.f)
+        ->Unit(benchmark::kMillisecond)
+        ->Arg(n)
+        ->MeasureProcessCPUTime()
+        ->UseRealTime()
+        ->Iterations(200)
+        ->Repetitions(5);
+#endif
     benchmark::RegisterBenchmark("qupath_jpg" + name_surfix, BM_dz_qupath_get_tile, filepath, tile_size, overlap, tiles,
                                  "jpg", 0.9f)
         ->Unit(benchmark::kMillisecond)

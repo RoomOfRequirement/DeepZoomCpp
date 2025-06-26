@@ -1,15 +1,28 @@
 #include "deepzoom.hpp"
 
+extern "C"
+{
+#define XMD_H
+#include <jpeglib.h>
+#ifdef const
+#undef const
+#endif
+#include <png.h>
 #include <openslide.h>
+}
 
 #include <memory>
 #include <numeric>
 #include <cmath>
+#include <algorithm>
+#include <iterator>
 
 using namespace dz_openslide;
 
-DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int overlap, bool limit_bounds)
-    : m_tile_size(tile_size), m_overlap(overlap), m_limit_bounds(limit_bounds)
+DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int overlap, bool limit_bounds,
+                                     ImageFormat format, float quality)
+    : m_tile_size(tile_size), m_overlap(overlap), m_limit_bounds(limit_bounds), m_format(format),
+      m_quality(std ::clamp(quality, 0.f, 1.f))
 {
     m_slide = openslide_open(filepath.c_str());
     if (!m_slide)
@@ -121,16 +134,25 @@ int64_t DeepZoomGenerator::tile_count() const
                        [](auto s, auto const& d) { return s + d.first * d.second; });
 }
 
-std::tuple<int64_t, int64_t, std::vector<uint8_t>> DeepZoomGenerator::get_tile(int dz_level, int col, int row) const
+std::tuple<int64_t, int64_t, std::vector<uint32_t>> dz_openslide::DeepZoomGenerator::get_tile_pixels(int dz_level,
+                                                                                                     int col,
+                                                                                                     int row) const
 {
-    auto [info, z_size] = _get_tile_info(dz_level, col, row);
-    auto const& [l0_location, slide_level, l_size] = info;
+    auto const& [l0_location, slide_level, l_size] = get_tile_coordinates(dz_level, col, row);
     auto const& [width, height] = l_size;
     auto const& [xx, yy] = l0_location;
 
+    std::vector<uint32_t> buf(width * height);
+    openslide_read_region(m_slide, buf.data(), xx, yy, slide_level, width, height);
+    return std::make_tuple(width, height, std::move(buf));
+}
+
+std::tuple<int64_t, int64_t, std::vector<uint8_t>> DeepZoomGenerator::get_tile_bytes(int dz_level, int col,
+                                                                                     int row) const
+{
+    auto const& [width, height, buf] = get_tile_pixels(dz_level, col, row);
+
     // https://openslide.org/docs/premultiplied-argb/
-    auto buf = std::make_unique<uint32_t[]>(width * height);
-    openslide_read_region(m_slide, buf.get(), xx, yy, slide_level, width, height);
     std::vector<uint8_t> data;
     data.reserve(width * height * 4);
     uint32_t p = 0;
@@ -147,6 +169,18 @@ std::tuple<int64_t, int64_t, std::vector<uint8_t>> DeepZoomGenerator::get_tile(i
     return std::make_tuple(width, height, std::move(data));
 }
 
+std::vector<uint8_t> DeepZoomGenerator::get_tile(int dz_level, int col, int row) const
+{
+    auto const& [width, height, pixels] = get_tile_pixels(dz_level, col, row);
+    auto const quality = static_cast<int>(m_quality * 100);
+    if (m_format == ImageFormat::JPG)
+        return encode_pixels_to_jpeg(pixels, static_cast<int>(width), static_cast<int>(height), quality);
+    else if (m_format == ImageFormat::PNG)
+        return encode_pixels_to_png(pixels, static_cast<int>(width), static_cast<int>(height),
+                                    std::clamp((100 - quality) / 10, 0, 9));
+    return {};
+}
+
 std::tuple<std::pair<int64_t, int64_t>, int, std::pair<int64_t, int64_t>> DeepZoomGenerator::get_tile_coordinates(
     int dz_level, int col, int row) const
 {
@@ -158,13 +192,13 @@ std::pair<int64_t, int64_t> DeepZoomGenerator::get_tile_dimensions(int dz_level,
     return std::get<1>(_get_tile_info(dz_level, col, row));
 }
 
-std::string DeepZoomGenerator::get_dzi(std::string const& format) const
+std::string DeepZoomGenerator::get_dzi() const
 {
     auto const& [width, height] = m_l_dimensions[0];
     return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n \
 <Image xmlns = \"http://schemas.microsoft.com/deepzoom/2008\"\n \
   Format=\"" +
-           format + "\"\n \
+           std::string((m_format == ImageFormat::PNG) ? "png" : "jpg") + "\"\n \
   Overlap=\"" +
            std::to_string(m_overlap) + "\"\n \
   TileSize=\"" +
@@ -182,6 +216,122 @@ std::string DeepZoomGenerator::get_dzi(std::string const& format) const
 double DeepZoomGenerator::get_mpp() const
 {
     return m_mpp;
+}
+
+std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_jpeg(std::vector<uint32_t> const& pixels,
+                                                                            int width, int height, int quality)
+{
+    jpeg_compress_struct cinfo;
+    jpeg_error_mgr jerr;
+    cinfo.err = jpeg_std_error(&jerr);
+    jpeg_create_compress(&cinfo);
+
+    unsigned char* mem_buffer = nullptr;
+    unsigned long encoded_size;
+    jpeg_mem_dest(&cinfo, &mem_buffer, &encoded_size);
+
+    cinfo.image_width = width;
+    cinfo.image_height = height;
+    cinfo.input_components = 3;
+    cinfo.in_color_space = JCS_RGB;
+    // may consumes more time and memory but with better quality and smaller size
+    cinfo.optimize_coding = TRUE;
+
+    jpeg_set_defaults(&cinfo);
+    jpeg_set_quality(&cinfo, quality, TRUE);
+    // disable chroma subsampling for very high quality
+    if (quality > 90)
+    {
+        cinfo.comp_info[0].v_samp_factor = 1;
+        cinfo.comp_info[0].h_samp_factor = 1;
+    }
+
+    jpeg_start_compress(&cinfo, TRUE);
+
+    std::vector<uint8_t> rgb(width * 3);
+    for (int j = 0; j < height; j++)
+    {
+        uint32_t const* argb = pixels.data() + j * width;
+        uint8_t* dest = rgb.data();
+        for (int i = 0; i < width; i++)
+        {
+            uint32_t p = argb[i];
+            dest[0] = p >> 16;
+            dest[1] = p >> 8;
+            dest[2] = p;
+            dest += 3;
+        }
+
+        JSAMPROW row_ptr = rgb.data();
+        jpeg_write_scanlines(&cinfo, &row_ptr, 1);
+    }
+
+    jpeg_finish_compress(&cinfo);
+    jpeg_destroy_compress(&cinfo);
+
+    std::vector<uint8_t> res(mem_buffer, mem_buffer + encoded_size);
+
+    free(mem_buffer);
+
+    return res;
+}
+
+std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_png(std::vector<uint32_t> const& pixels,
+                                                                           int width, int height, int compression_level)
+{
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png_ptr) return {};
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr)
+    {
+        png_destroy_write_struct(&png_ptr, NULL);
+        return {};
+    }
+    if (setjmp(png_jmpbuf(png_ptr)))
+    {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        return {};
+    }
+
+    // since the argb_bytes is premultiplied ARGB, we can just discard the alpha and convert it to RGB
+    png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_set_compression_level(png_ptr, compression_level);
+
+    std::vector<uint8_t> buffer;
+    buffer.reserve(static_cast<size_t>(width) * height * 4);
+    auto write_callback = [](png_structp png_ptr, png_bytep data, png_size_t length) {
+        auto* p = static_cast<std::vector<uint8_t>*>(png_get_io_ptr(png_ptr));
+        //p->insert(p->end(), data, data + length);
+        std::copy(data, data + length, std::back_inserter(*p));
+    };
+    png_set_write_fn(png_ptr, &buffer, write_callback, nullptr);
+
+    png_write_info(png_ptr, info_ptr);
+    png_set_packing(png_ptr);
+
+    std::vector<uint8_t> rgb(width * 3);
+    for (int j = 0; j < height; j++)
+    {
+        uint32_t const* argb = pixels.data() + j * width;
+        uint8_t* dest = rgb.data();
+        for (int i = 0; i < width; i++)
+        {
+            uint32_t p = argb[i];
+            dest[0] = p >> 16;
+            dest[1] = p >> 8;
+            dest[2] = p;
+            dest += 3;
+        }
+        png_write_row(png_ptr, rgb.data());
+    }
+
+    png_write_end(png_ptr, info_ptr);
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+
+    buffer.shrink_to_fit();
+
+    return buffer;
 }
 
 std::pair<std::tuple<std::pair<int64_t, int64_t>, // l0_location
