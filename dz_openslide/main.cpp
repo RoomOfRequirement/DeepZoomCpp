@@ -40,8 +40,9 @@ int main(int argc, char* argv[])
     }
 
     std::cout << slide_handler.get_dzi() << std::endl;
+    std::cout << "icc_profile size: " << slide_handler.get_icc_profile().size() << std::endl;
 
-    auto const& tile = slide_handler.get_tile(slide_handler.level_count() / 2, 0, 0);
+    auto const& tile = slide_handler.get_tile(slide_handler.level_count() / 2, 0, 0, true);
     std::cout << "data:image/" + format + ";base64," + Base64_Encode(tile.data(), tile.size()) << std::endl;
 
     /*

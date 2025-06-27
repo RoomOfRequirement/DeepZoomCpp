@@ -97,6 +97,7 @@ DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int ov
 
     if (auto bg_color = openslide_get_property_value(m_slide, OPENSLIDE_PROPERTY_NAME_BACKGROUND_COLOR); bg_color)
         m_background_color = std::string("#") + bg_color;
+    m_icc_profile = _get_icc_profile();
 }
 
 DeepZoomGenerator::~DeepZoomGenerator()
@@ -169,15 +170,17 @@ std::tuple<int64_t, int64_t, std::vector<uint8_t>> DeepZoomGenerator::get_tile_b
     return std::make_tuple(width, height, std::move(data));
 }
 
-std::vector<uint8_t> DeepZoomGenerator::get_tile(int dz_level, int col, int row) const
+std::vector<uint8_t> DeepZoomGenerator::get_tile(int dz_level, int col, int row, bool with_icc_profile) const
 {
     auto const& [width, height, pixels] = get_tile_pixels(dz_level, col, row);
     auto const quality = static_cast<int>(m_quality * 100);
     if (m_format == ImageFormat::JPG)
-        return encode_pixels_to_jpeg(pixels, static_cast<int>(width), static_cast<int>(height), quality);
+        return encode_pixels_to_jpeg(pixels, static_cast<int>(width), static_cast<int>(height), quality,
+                                     with_icc_profile ? m_icc_profile : std::vector<uint8_t>{});
     else if (m_format == ImageFormat::PNG)
         return encode_pixels_to_png(pixels, static_cast<int>(width), static_cast<int>(height),
-                                    std::clamp((100 - quality) / 10, 0, 9));
+                                    std::clamp((100 - quality) / 10, 0, 9),
+                                    with_icc_profile ? m_icc_profile : std::vector<uint8_t>{});
     return {};
 }
 
@@ -218,8 +221,14 @@ double DeepZoomGenerator::get_mpp() const
     return m_mpp;
 }
 
+std::vector<uint8_t> dz_openslide::DeepZoomGenerator::get_icc_profile() const
+{
+    return m_icc_profile;
+}
+
 std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_jpeg(std::vector<uint32_t> const& pixels,
-                                                                            int width, int height, int quality)
+                                                                            int width, int height, int quality,
+                                                                            std::vector<uint8_t> const& icc_profile)
 {
     jpeg_compress_struct cinfo;
     jpeg_error_mgr jerr;
@@ -247,6 +256,25 @@ std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_jpeg(std:
     }
 
     jpeg_start_compress(&cinfo, TRUE);
+
+    if (!icc_profile.empty())
+    {
+        constexpr char const* icc_profile_name = "ICC Profile"; // 12 bytes
+        // Wiki: Exif metadata are restricted in size to 64 kB in JPEG images because according to the specification this information must be contained within a single JPEG APP1 segment.
+        constexpr int max_marker_size = 65533;
+        constexpr int max_icc_marker_size = max_marker_size - (12 + 2);
+        int profile_size = static_cast<int>(icc_profile.size());
+        const int markers = (profile_size + (max_icc_marker_size - 1)) / max_icc_marker_size;
+        if (markers < 256)
+            for (int i = 1, index = 0; i <= markers; i++)
+            {
+                auto const marker_size = std::min(max_icc_marker_size, profile_size - index);
+                auto const block = icc_profile_name + char(i) + char(markers) +
+                                   std::string(icc_profile.begin() + index, icc_profile.begin() + index + marker_size);
+                jpeg_write_marker(&cinfo, JPEG_APP0 + 2, reinterpret_cast<const JOCTET*>(block.data()), marker_size);
+                index += marker_size;
+            }
+    }
 
     std::vector<uint8_t> rgb(width * 3);
     for (int j = 0; j < height; j++)
@@ -277,7 +305,8 @@ std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_jpeg(std:
 }
 
 std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_png(std::vector<uint32_t> const& pixels,
-                                                                           int width, int height, int compression_level)
+                                                                           int width, int height, int compression_level,
+                                                                           std::vector<uint8_t> const& icc_profile)
 {
     png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     if (!png_ptr) return {};
@@ -297,6 +326,14 @@ std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_png(std::
     png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
                  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
     png_set_compression_level(png_ptr, compression_level);
+
+#ifdef PNG_iCCP_SUPPORTED
+    if (!icc_profile.empty())
+    {
+        png_set_iCCP(png_ptr, info_ptr, "ICC Profile", PNG_COMPRESSION_TYPE_DEFAULT, icc_profile.data(),
+                     icc_profile.size());
+    }
+#endif
 
     std::vector<uint8_t> buffer;
     buffer.reserve(static_cast<size_t>(width) * height * 4);
@@ -367,4 +404,12 @@ DeepZoomGenerator::_get_tile_info(int dz_level, int col, int row) const
         std::min(static_cast<int64_t>(std::ceil(l_dz_downsample * z_size.second)),
                  m_l_dimensions[slide_level].second - static_cast<int64_t>(std::ceil(l_location.second))));
     return std::make_pair(std::make_tuple(l0_location, slide_level, l_size), z_size);
+}
+
+std::vector<uint8_t> dz_openslide::DeepZoomGenerator::_get_icc_profile() const
+{
+    auto icc_profile_size = openslide_get_icc_profile_size(m_slide);
+    std::vector<uint8_t> icc_profile(icc_profile_size);
+    openslide_read_icc_profile(m_slide, icc_profile.data());
+    return icc_profile;
 }

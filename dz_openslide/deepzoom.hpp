@@ -41,7 +41,7 @@ namespace dz_openslide
         // <width, height, ARGB_Premultiplied_bytes>
         std::tuple<int64_t, int64_t, std::vector<uint8_t>> get_tile_bytes(int dz_level, int col, int row) const;
         // PNG/JPG bytes
-        std::vector<uint8_t> get_tile(int dz_level, int col, int row) const;
+        std::vector<uint8_t> get_tile(int dz_level, int col, int row, bool with_icc_profile = false) const;
         // <<x, y>, slide_level, <width, height>>
         std::tuple<std::pair<int64_t, int64_t>, int, std::pair<int64_t, int64_t>> get_tile_coordinates(int dz_level,
                                                                                                        int col,
@@ -53,10 +53,14 @@ namespace dz_openslide
 
         double get_mpp() const;
 
+        // ICC profile
+        std::vector<uint8_t> get_icc_profile() const;
+
         static std::vector<uint8_t> encode_pixels_to_jpeg(std::vector<uint32_t> const& pixels, int width, int height,
-                                                          int quality);
+                                                          int quality, std::vector<uint8_t> const& icc_profile = {});
         static std::vector<uint8_t> encode_pixels_to_png(std::vector<uint32_t> const& pixels, int width, int height,
-                                                         int compression_level = 3);
+                                                         int compression_level = 3,
+                                                         std::vector<uint8_t> const& icc_profile = {});
 
     private:
         auto _get_tile_info(int dz_level, int col, int row) const
@@ -66,6 +70,7 @@ namespace dz_openslide
                                     >,
                          std::pair<int64_t, int64_t> // z_size
                          >;
+        std::vector<uint8_t> _get_icc_profile() const;
 
     private:
         _openslide* m_slide = nullptr;
@@ -86,5 +91,6 @@ namespace dz_openslide
         std::vector<double> m_level_downsamples;                   // slide level downsample factors
         std::vector<double> m_level_dz_downsamples;                // deepzoom level downsample factors
         std::string m_background_color = "#ffffff";
+        std::vector<uint8_t> m_icc_profile{}; // ICC profile data
     };
 } // namespace dz_openslide
