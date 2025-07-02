@@ -5,6 +5,11 @@
 #include <jpeglib.h>
 #include <png.h>
 
+#ifdef QT_GUI_LIB
+#include <QImage>
+#include <QBuffer>
+#endif
+
 std::string ARGB32_To_JPEG_Base64(std::vector<uint8_t> const& argb_bytes, int width, int height, int quality = 75);
 std::string ARGB32_To_PNG_Base64(std::vector<uint8_t> const& argb_bytes, int width, int height,
                                  int compression_level = 3 /*0-9*/);
@@ -45,31 +50,19 @@ int main(int argc, char* argv[])
     auto const& tile = slide_handler.get_tile(slide_handler.level_count() / 2, 0, 0, true);
     std::cout << "data:image/" + format + ";base64," + Base64_Encode(tile.data(), tile.size()) << std::endl;
 
-    /*
     auto const& [width, height, argb_bytes] = slide_handler.get_tile_bytes(slide_handler.level_count() / 2, 0, 0);
     std::cout << ARGB32_To_JPEG_Base64(argb_bytes, width, height, 75) << std::endl;
     std::cout << ARGB32_To_PNG_Base64(argb_bytes, width, height) << std::endl;
 
-    auto const& [width, height, argb_bytes] = slide_handler.get_tile_bytes(slide_handler.level_count() / 2, 0, 0);
-    std::cout << "Tile Size: " << width << "x" << height << std::endl;
-    // std::cout << "Tile Bytes: " << argb_bytes.size() << std::endl;
-    // you can check the base64 string in a browser by pasting it into the address bar
-    std::string format = "jpg";
-    int quality = 75;
-    if (argc > 2)
-    {
-        if (std::string(argv[2]) == "png") format = "png";
-        if (argc > 3) quality = std::stoi(argv[3]);
-
-        if (format == "jpg")
-            std::cout << ARGB32_To_JPEG_Base64(argb_bytes, width, height, quality) << std::endl;
-        else if (format == "png")
-            std::cout << ARGB32_To_PNG_Base64(argb_bytes, width, height, std::clamp((100 - quality) / 10, 0, 9))
-                      << std::endl;
-        else
-            std::cerr << "Unknown format: " << argv[2] << ". Supported formats: png, jpg." << std::endl;
-    }
-    */
+#ifdef QT_GUI_LIB
+    auto const& [w, h, pixels] = slide_handler.get_tile_pixels(slide_handler.level_count() / 2, 0, 0);
+    auto img = QImage((const uchar*)pixels.data(), w, h, QImage::Format_ARGB32_Premultiplied);
+    QByteArray byteArray;
+    QBuffer buffer(&byteArray);
+    buffer.open(QIODevice::WriteOnly);
+    img.save(&buffer, format.c_str(), quality);
+    std::cout << "data:image/" + format + ";base64," << byteArray.toBase64().toStdString() << std::endl;
+#endif
 
     return 0;
 }
@@ -104,10 +97,10 @@ std::string ARGB32_To_JPEG_Base64(std::vector<uint8_t> const& argb_bytes, int wi
         uint8_t* dest = rgb.data();
         while (--n >= 0)
         {
-            // swap and convert ARGB to RGB
-            dest[0] = argb[2];
-            dest[1] = argb[1];
-            dest[2] = argb[0];
+            // convert ARGB to RGB
+            dest[0] = argb[1];
+            dest[1] = argb[2];
+            dest[2] = argb[3];
             dest += 3;
             argb += 4;
         }
@@ -167,10 +160,10 @@ std::string ARGB32_To_PNG_Base64(std::vector<uint8_t> const& argb_bytes, int wid
         uint8_t* dest = rgba.data();
         while (--n >= 0)
         {
-            // swap and convert ARGB to RGB
-            dest[0] = argb[2];
-            dest[1] = argb[1];
-            dest[2] = argb[0];
+            // convert ARGB to RGB
+            dest[0] = argb[1];
+            dest[1] = argb[2];
+            dest[2] = argb[3];
             dest += 3;
             argb += 4;
         }

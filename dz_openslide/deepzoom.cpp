@@ -16,6 +16,7 @@ extern "C"
 #include <cmath>
 #include <algorithm>
 #include <iterator>
+#include <bit>
 
 using namespace dz_openslide;
 
@@ -160,12 +161,15 @@ std::tuple<int64_t, int64_t, std::vector<uint8_t>> DeepZoomGenerator::get_tile_b
     for (int64_t i = 0; i < width * height; i++)
     {
         p = buf[i];
-        // according to the docs: OpenSlide emits samples as uint32_t, so on little-endian systems the output will need to be byte-swapped relative to the input.
-        // i have to reverse the order to obtain the correct color
-        data.push_back(p);       // b
-        data.push_back(p >> 8);  // g
-        data.push_back(p >> 16); // r
+        if constexpr (std::endian::native == std::endian::big)
+        {
+            // C++ 23 can use `std::byteswap`
+            p = ((p & 0x000000FF) << 24) | ((p & 0x0000FF00) << 8) | ((p & 0x00FF0000) >> 8) | ((p & 0xFF000000) >> 24);
+        }
         data.push_back(p >> 24); // a
+        data.push_back(p >> 16); // r
+        data.push_back(p >> 8);  // g
+        data.push_back(p);       // b
     }
     return std::make_tuple(width, height, std::move(data));
 }

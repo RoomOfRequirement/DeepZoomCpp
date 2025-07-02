@@ -38,7 +38,7 @@ auto BM_dz_openslide_get_tile_qimg = [](benchmark::State& state, std::string con
     for (auto _ : state)
     {
         auto [dz_level, col, row] = tiles[i++ % tiles.size()];
-        auto const& [width, height, data] = slide.get_tile_bytes(dz_level, col, row);
+        auto const& [width, height, data] = slide.get_tile_pixels(dz_level, col, row);
 
         auto img = QImage((const uchar*)data.data(), width, height, QImage::Format_ARGB32_Premultiplied);
         QByteArray byteArray;

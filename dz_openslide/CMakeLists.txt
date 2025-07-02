@@ -21,6 +21,8 @@ endif()
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
 
+#find_package(Qt6 REQUIRED COMPONENTS Gui) # jpg/png encoding
+
 add_library(${PROJECT_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/deepzoom.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/deepzoom.hpp
@@ -38,6 +40,7 @@ add_executable(${PROJECT_NAME}_test
 )
 target_link_libraries(${PROJECT_NAME}_test
     PRIVATE ${PROJECT_NAME}
+    #PRIVATE Qt${QT_VERSION_MAJOR}::Gui
 )
 
 add_custom_command(TARGET ${PROJECT_NAME}_test POST_BUILD
