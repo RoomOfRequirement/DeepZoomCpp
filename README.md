@@ -48,6 +48,11 @@ I used `openslide/DeepZoomGenerator` in my [`QtTilesViewer`](https://github.com/
 
 And used `qupath/DeepZoomGenerator` in my [`bioimread/tilesviewer`](https://github.com/RoomOfAnalysis/bioimread/blob/main/qpwrapper/tilesviewer.cpp) to support more formats.
 
+Please notice the difference of `getTile` between `dz_openslide/DeepZoomGenerator` and `qupath/DeepZoomGenerator`:
+- the former one supports ICC profile and NOT do resizing for the tiles, which means the width and height of the returned tile is not always equal to those specified in `get_tile_dimensions`
+- the PNG compression level does NOT work for the latter one due to the limitation of `javax.imageio.ImageIO`
+- details can be found in the code base
+
 ## Benchmarks
 
 Please see [here](dz_bench/bench.md).
