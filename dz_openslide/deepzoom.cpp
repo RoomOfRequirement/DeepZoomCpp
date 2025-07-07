@@ -261,24 +261,8 @@ std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_jpeg(std:
 
     jpeg_start_compress(&cinfo, TRUE);
 
-    if (!icc_profile.empty())
-    {
-        constexpr char const* icc_profile_name = "ICC Profile"; // 12 bytes
-        // Wiki: Exif metadata are restricted in size to 64 kB in JPEG images because according to the specification this information must be contained within a single JPEG APP1 segment.
-        constexpr int max_marker_size = 65533;
-        constexpr int max_icc_marker_size = max_marker_size - (12 + 2);
-        int profile_size = static_cast<int>(icc_profile.size());
-        const int markers = (profile_size + (max_icc_marker_size - 1)) / max_icc_marker_size;
-        if (markers < 256)
-            for (int i = 1, index = 0; i <= markers; i++)
-            {
-                auto const marker_size = std::min(max_icc_marker_size, profile_size - index);
-                auto const block = icc_profile_name + char(i) + char(markers) +
-                                   std::string(icc_profile.begin() + index, icc_profile.begin() + index + marker_size);
-                jpeg_write_marker(&cinfo, JPEG_APP0 + 2, reinterpret_cast<const JOCTET*>(block.data()), marker_size);
-                index += marker_size;
-            }
-    }
+    jpeg_write_icc_profile(&cinfo, reinterpret_cast<const JOCTET*>(icc_profile.data()),
+                           static_cast<unsigned int>(icc_profile.size()));
 
     std::vector<uint8_t> rgb(width * 3);
     for (int j = 0; j < height; j++)
