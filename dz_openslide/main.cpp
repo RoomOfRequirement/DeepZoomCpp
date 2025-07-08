@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
     DeepZoomGenerator slide_handler(argv[1], 254, 1, false,
                                     format == "png" ? DeepZoomGenerator::ImageFormat::PNG :
                                                       DeepZoomGenerator::ImageFormat::JPG,
-                                    format == "png" ? std::clamp(quality / 100.f, 0.f, 1.f) : 0.75f);
+                                    format == "jpg" ? std::clamp(quality / 100.f, 0.f, 1.f) : 0.75f);
     if (!slide_handler.is_valid())
     {
         std::cerr << "Failed to open slide: " << argv[1] << std::endl;
@@ -50,9 +50,10 @@ int main(int argc, char* argv[])
     auto const& tile = slide_handler.get_tile(slide_handler.level_count() / 2, 0, 0, true);
     std::cout << "data:image/" + format + ";base64," + Base64_Encode(tile.data(), tile.size()) << std::endl;
 
-    auto const& [width, height, argb_bytes] = slide_handler.get_tile_bytes(slide_handler.level_count() / 2, 0, 0);
-    std::cout << ARGB32_To_JPEG_Base64(argb_bytes, width, height, 75) << std::endl;
-    std::cout << ARGB32_To_PNG_Base64(argb_bytes, width, height) << std::endl;
+    // // output without icc
+    // auto const& [width, height, argb_bytes] = slide_handler.get_tile_bytes(slide_handler.level_count() / 2, 0, 0);
+    // std::cout << ARGB32_To_JPEG_Base64(argb_bytes, width, height, 75) << std::endl;
+    // std::cout << ARGB32_To_PNG_Base64(argb_bytes, width, height) << std::endl;
 
 #ifdef QT_GUI_LIB
     auto const& [w, h, pixels] = slide_handler.get_tile_pixels(slide_handler.level_count() / 2, 0, 0);

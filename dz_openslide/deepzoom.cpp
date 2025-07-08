@@ -261,8 +261,9 @@ std::vector<uint8_t> dz_openslide::DeepZoomGenerator::encode_pixels_to_jpeg(std:
 
     jpeg_start_compress(&cinfo, TRUE);
 
-    jpeg_write_icc_profile(&cinfo, reinterpret_cast<const JOCTET*>(icc_profile.data()),
-                           static_cast<unsigned int>(icc_profile.size()));
+    if (!icc_profile.empty())
+        jpeg_write_icc_profile(&cinfo, reinterpret_cast<const JOCTET*>(icc_profile.data()),
+                               static_cast<unsigned int>(icc_profile.size()));
 
     std::vector<uint8_t> rgb(width * 3);
     for (int j = 0; j < height; j++)
