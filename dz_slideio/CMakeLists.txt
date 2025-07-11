@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(dz_slideio VERSION 0.1 LANGUAGES CXX)
 
 find_library(slideio
-    NAMES slideio
+    NAMES slideio slideio_d
     PATHS ENV SLIDEIO_LIB_PATH
     NO_CACHE
     REQUIRED
@@ -20,18 +20,29 @@ else()
 endif()
 
 find_package(JPEG REQUIRED)
+find_package(PNG REQUIRED)
 
-add_executable(${PROJECT_NAME}
-    ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+add_library(${PROJECT_NAME}
+    ${CMAKE_CURRENT_SOURCE_DIR}/deepzoom.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/deepzoom.hpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC ${slideio_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME}
     PUBLIC ${slideio_Libraries}
     PUBLIC JPEG::JPEG
+    PUBLIC PNG::PNG
 )
 
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+add_executable(${PROJECT_NAME}_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/deepzoom.cpp
+)
+target_link_libraries(${PROJECT_NAME}_test
+    PRIVATE ${PROJECT_NAME}
+)
+
+add_custom_command(TARGET ${PROJECT_NAME}_test POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         "${slideio_dir}/bin/"
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/
+        $<TARGET_FILE_DIR:${PROJECT_NAME}_test>/
 )

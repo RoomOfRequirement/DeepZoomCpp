@@ -1,10 +1,12 @@
-#include <slideio/slideio/slideio.hpp>
-#include <slideio/core/levelinfo.hpp>
+#include "deepzoom.hpp"
 
 #include <iostream>
 #include <algorithm>
 #include <memory>
 #include <jpeglib.h>
+
+// #include <slideio/slideio/slideio.hpp>
+// #include <slideio/core/levelinfo.hpp>
 
 std::string RGB32_To_JPEG_Base64(std::vector<uint8_t> const& rgb_bytes, int width, int height, int quality = 75);
 std::string Base64_Encode(unsigned char const* src, size_t len);
@@ -25,55 +27,100 @@ std::ostream& operator<<(std::ostream& os, C<T, Alloc> const& seq)
 
 int main(int argc, char* argv[])
 {
+    using namespace dz_slideio;
+
     if (argc < 2)
     {
-        std::cerr << "Usage: " << argv[0] << ": <slide path>" << std::endl;
+        std::cerr
+            << "Usage: " << argv[0]
+            << ": <slide path> <format(jpg/png, default=jpg)> <quality(0-100, default=75)> <tile_size(default=254)> <overlap(default=1)> <dz_level(default=0)> <dz_col(default=0)> <dz_row(default=0)>"
+            << std::endl;
         return -1;
     }
 
-    std::string filepath(argv[1]);
-    std::cout << "Opening slide: " << filepath << std::endl;
+    std::string format = "jpg";
+    int quality = 75;
+    int tile_size = 254;
+    int overlap = 1;
+    int dz_level = 0;
+    int dz_col = 0;
+    int dz_row = 0;
+    if (argc > 2)
+    {
+        if (std::string(argv[2]) == "png") format = "png";
+        if (argc > 3) quality = std::stoi(argv[3]);
+        if (argc > 4) tile_size = std::stoi(argv[4]);
+        if (argc > 5) overlap = std::stoi(argv[5]);
+        if (argc > 6) dz_level = std::stoi(argv[6]);
+        if (argc > 7) dz_col = std::stoi(argv[7]);
+        if (argc > 8) dz_row = std::stoi(argv[8]);
+    }
 
-    auto slide_handler = slideio::openSlide(filepath);
-    if (!slide_handler)
+    // FIXME: slideio cannot handle pyramidal tiff slides, its number of zoom levels is always 0
+    DeepZoomGenerator slide_handler(argv[1], tile_size, overlap,
+                                    format == "png" ? DeepZoomGenerator::ImageFormat::PNG :
+                                                      DeepZoomGenerator::ImageFormat::JPG,
+                                    format == "jpg" ? std::clamp(quality / 100.f, 0.f, 1.f) : 0.75f);
+    if (!slide_handler.is_valid())
     {
         std::cerr << "Failed to open slide: " << argv[1] << std::endl;
         return -1;
     }
 
-    // https://github.com/Booritas/slideio/blob/master/src/slideio/slideio/slide.hpp
-    auto scene_count = slide_handler->getNumScenes();
-    std::cout << "Number of scenes: " << scene_count << std::endl;
-    auto metadata = slide_handler->getRawMetadata();
-    std::cout << "RawMetadata: " << metadata << std::endl;
-    auto auxImageNames = slide_handler->getAuxImageNames();
-    std::cout << "Auxiliary images: " << auxImageNames << std::endl;
-
-    // https://github.com/Booritas/slideio/blob/master/src/slideio/slideio/scene.hpp
-    auto scene = slide_handler->getScene(0);
-    std::cout << "Scene: " << scene->getName() << std::endl;
-    auto scene_metadata = scene->getRawMetadata();
-    std::cout << "Scene RawMetadata: " << scene_metadata << std::endl;
-    auto [x, y, w, h] = scene->getRect();
-    std::cout << "Scene Rect: (" << x << ", " << y << ", " << w << ", " << h << ")" << std::endl;
-    auto [mpp_x, mpp_y] = scene->getResolution();
-    mpp_x *= 1e6; // convert to microns
-    mpp_y *= 1e6; // convert to microns
-    std::cout << "Scene Resolution: (" << mpp_x << ", " << mpp_y << ")" << std::endl;
-    auto channel_count = scene->getNumChannels();
-    std::cout << "Scene Channel Count: " << channel_count << std::endl;
-    auto zoom_levels = scene->getNumZoomLevels();
-    std::cout << "Scene Zoom Levels: " << zoom_levels << std::endl;
-    for (auto i = 0; i < zoom_levels; ++i)
+    std::cout << slide_handler.get_dzi() << std::endl;
+    std::cout << "dz_levels: " << slide_handler.level_count() << std::endl;
+    for (auto i = 0; i < slide_handler.level_count(); i++)
     {
-        auto li = scene->getLevelInfo(i);
-        std::cout << "Zoom Level " << i << ": (" << *li << ")" << std::endl;
+        auto [w, h] = slide_handler.level_tiles()[i];
+        std::cout << "Level " << i << ": (Rows: " << w << ", Cols: " << h << ")" << std::endl;
     }
-    auto block_size = scene->getBlockSize(std::make_tuple(512, 512), 0, 3, 1, 1);
-    std::cout << "Scene Block Size: (" << block_size << ")" << std::endl;
-    std::vector<uint8_t> block_buffer(block_size);
-    scene->readBlock(std::make_tuple(w / 2 - 256, h / 2 - 256, 512, 512), block_buffer.data(), block_size);
-    std::cout << RGB32_To_JPEG_Base64(block_buffer, 512, 512, 75) << std::endl;
+
+    auto const& tile = slide_handler.get_tile(dz_level, dz_col, dz_row);
+    std::cout << "data:image/" + format + ";base64," + Base64_Encode(tile.data(), tile.size()) << std::endl;
+
+    // std::string filepath(argv[1]);
+    // std::cout << "Opening slide: " << filepath << std::endl;
+
+    // auto slide_handler = slideio::openSlide(filepath);
+    // if (!slide_handler)
+    // {
+    //    std::cerr << "Failed to open slide: " << argv[1] << std::endl;
+    //    return -1;
+    // }
+
+    // // https://github.com/Booritas/slideio/blob/master/src/slideio/slideio/slide.hpp
+    // auto scene_count = slide_handler->getNumScenes();
+    // std::cout << "Number of scenes: " << scene_count << std::endl;
+    // auto metadata = slide_handler->getRawMetadata();
+    // std::cout << "RawMetadata: " << metadata << std::endl;
+    // auto auxImageNames = slide_handler->getAuxImageNames();
+    // std::cout << "Auxiliary images: " << auxImageNames << std::endl;
+
+    // // https://github.com/Booritas/slideio/blob/master/src/slideio/slideio/scene.hpp
+    // auto scene = slide_handler->getScene(0);
+    // std::cout << "Scene: " << scene->getName() << std::endl;
+    // auto scene_metadata = scene->getRawMetadata();
+    // std::cout << "Scene RawMetadata: " << scene_metadata << std::endl;
+    // auto [x, y, w, h] = scene->getRect();
+    // std::cout << "Scene Rect: (" << x << ", " << y << ", " << w << ", " << h << ")" << std::endl;
+    // auto [mpp_x, mpp_y] = scene->getResolution();
+    // mpp_x *= 1e6; // convert to microns
+    // mpp_y *= 1e6; // convert to microns
+    // std::cout << "Scene Resolution: (" << mpp_x << ", " << mpp_y << ")" << std::endl;
+    // auto channel_count = scene->getNumChannels();
+    // std::cout << "Scene Channel Count: " << channel_count << std::endl;
+    // auto zoom_levels = scene->getNumZoomLevels();
+    // std::cout << "Scene Zoom Levels: " << zoom_levels << std::endl;
+    // for (auto i = 0; i < zoom_levels; ++i)
+    // {
+    //    auto li = scene->getLevelInfo(i);
+    //    std::cout << "Zoom Level " << i << ": (" << *li << ")" << std::endl;
+    // }
+    // auto block_size = scene->getBlockSize(std::make_tuple(512, 512), 0, 3, 1, 1);
+    // std::cout << "Scene Block Size: (" << block_size << ")" << std::endl;
+    // std::vector<uint8_t> block_buffer(block_size);
+    // scene->readBlock(std::make_tuple(w / 2 - 256, h / 2 - 256, 512, 512), block_buffer.data(), block_size);
+    // std::cout << RGB32_To_JPEG_Base64(block_buffer, 512, 512, 75) << std::endl;
 
     return 0;
 }

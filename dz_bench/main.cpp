@@ -12,6 +12,10 @@
 
 #include "../dz_openslide/deepzoom.hpp"
 #include "../dz_qupath/deepzoom.hpp"
+#include "../dz_slideio/deepzoom.hpp"
+
+//#define BENCH_PNG
+//#define BENCH_DZ_QUPATH
 
 auto BM_dz_openslide_get_tile = [](benchmark::State& state, std::string const& file_path, int tile_size, int overlap,
                                    std::vector<std::tuple<int, int, int>> const& tiles,
@@ -51,6 +55,7 @@ auto BM_dz_openslide_get_tile_qimg = [](benchmark::State& state, std::string con
 };
 #endif
 
+#ifdef BENCH_DZ_QUPATH
 auto BM_dz_qupath_get_tile = [](benchmark::State& state, std::string const& file_path, int tile_size, int overlap,
                                 std::vector<std::tuple<int, int, int>> const& tiles, std::string const& format = "jpg",
                                 float quality = 0.75f) {
@@ -58,6 +63,23 @@ auto BM_dz_qupath_get_tile = [](benchmark::State& state, std::string const& file
                                               (format == "jpg" ? dz_qupath::DeepZoomGenerator::ImageFormat::JPG :
                                                                  dz_qupath::DeepZoomGenerator::ImageFormat::PNG),
                                               quality);
+    size_t i = 0;
+    for (auto _ : state)
+    {
+        auto [dz_level, col, row] = tiles[i++ % tiles.size()];
+        auto img = slide.get_tile(dz_level, col, row);
+        benchmark::DoNotOptimize(img);
+    }
+};
+#endif
+
+auto BM_dz_slideio_get_tile = [](benchmark::State& state, std::string const& file_path, int tile_size, int overlap,
+                                 std::vector<std::tuple<int, int, int>> const& tiles, std::string const& format = "jpg",
+                                 float quality = 0.75f) {
+    auto slide = dz_slideio::DeepZoomGenerator(file_path, tile_size, overlap,
+                                               (format == "jpg" ? dz_slideio::DeepZoomGenerator::ImageFormat::JPG :
+                                                                  dz_slideio::DeepZoomGenerator::ImageFormat::PNG),
+                                               quality);
     size_t i = 0;
     for (auto _ : state)
     {
@@ -115,6 +137,7 @@ int main(int argc, char* argv[])
         ->UseRealTime()
         ->Iterations(200)
         ->Repetitions(5);
+#ifdef BENCH_PNG
     benchmark::RegisterBenchmark("openslide_png" + name_surfix, BM_dz_openslide_get_tile, filepath, tile_size, overlap,
                                  tiles, "png", 1.f)
         ->Unit(benchmark::kMillisecond)
@@ -123,6 +146,7 @@ int main(int argc, char* argv[])
         ->UseRealTime()
         ->Iterations(200)
         ->Repetitions(5);
+#endif
 #ifdef QT_GUI_LIB
     benchmark::RegisterBenchmark("openslide_jpg_q" + name_surfix, BM_dz_openslide_get_tile_qimg, filepath, tile_size,
                                  overlap, tiles, "jpg", 0.9f)
@@ -132,6 +156,7 @@ int main(int argc, char* argv[])
         ->UseRealTime()
         ->Iterations(200)
         ->Repetitions(5);
+#ifdef BENCH_PNG
     benchmark::RegisterBenchmark("openslide_png_q" + name_surfix, BM_dz_openslide_get_tile_qimg, filepath, tile_size,
                                  overlap, tiles, "png", 1.f)
         ->Unit(benchmark::kMillisecond)
@@ -141,6 +166,8 @@ int main(int argc, char* argv[])
         ->Iterations(200)
         ->Repetitions(5);
 #endif
+#endif
+#ifdef BENCH_DZ_QUPATH
     benchmark::RegisterBenchmark("qupath_jpg" + name_surfix, BM_dz_qupath_get_tile, filepath, tile_size, overlap, tiles,
                                  "jpg", 0.9f)
         ->Unit(benchmark::kMillisecond)
@@ -149,6 +176,7 @@ int main(int argc, char* argv[])
         ->UseRealTime()
         ->Iterations(200)
         ->Repetitions(5);
+#ifdef BENCH_PNG
     benchmark::RegisterBenchmark("qupath_png" + name_surfix, BM_dz_qupath_get_tile, filepath, tile_size, overlap, tiles,
                                  "png", 1.f)
         ->Unit(benchmark::kMillisecond)
@@ -157,6 +185,26 @@ int main(int argc, char* argv[])
         ->UseRealTime()
         ->Iterations(200)
         ->Repetitions(5);
+#endif
+#endif
+    benchmark::RegisterBenchmark("slideio_jpg" + name_surfix, BM_dz_slideio_get_tile, filepath, tile_size, overlap,
+                                 tiles, "jpg", 0.9f)
+        ->Unit(benchmark::kMillisecond)
+        ->Arg(n)
+        ->MeasureProcessCPUTime()
+        ->UseRealTime()
+        ->Iterations(200)
+        ->Repetitions(5);
+#ifdef BENCH_PNG
+    benchmark::RegisterBenchmark("slideio_png" + name_surfix, BM_dz_slideio_get_tile, filepath, tile_size, overlap,
+                                 tiles, "png", 1.f)
+        ->Unit(benchmark::kMillisecond)
+        ->Arg(n)
+        ->MeasureProcessCPUTime()
+        ->UseRealTime()
+        ->Iterations(200)
+        ->Repetitions(5);
+#endif
     benchmark::RunSpecifiedBenchmarks();
     benchmark::Shutdown();
 }

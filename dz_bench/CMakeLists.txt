@@ -12,6 +12,7 @@ add_executable(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PRIVATE dz_openslide
     PRIVATE dz_qupath
+    PRIVATE dz_slideio
     PRIVATE benchmark::benchmark
     #PRIVATE Qt${QT_VERSION_MAJOR}::Gui
 )

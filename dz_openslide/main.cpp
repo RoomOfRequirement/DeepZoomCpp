@@ -21,20 +21,32 @@ int main(int argc, char* argv[])
 
     if (argc < 2)
     {
-        std::cerr << "Usage: " << argv[0]
-                  << ": <slide path> <format(jpg/png, default=jpg)> <quality(0-100, default=75)>" << std::endl;
+        std::cerr
+            << "Usage: " << argv[0]
+            << ": <slide path> <format(jpg/png, default=jpg)> <quality(0-100, default=75)> <tile_size(default=254)> <overlap(default=1)> <dz_level(default=0)> <dz_col(default=0)> <dz_row(default=0)>"
+            << std::endl;
         return -1;
     }
 
     std::string format = "jpg";
     int quality = 75;
+    int tile_size = 254;
+    int overlap = 1;
+    int dz_level = 0;
+    int dz_col = 0;
+    int dz_row = 0;
     if (argc > 2)
     {
         if (std::string(argv[2]) == "png") format = "png";
         if (argc > 3) quality = std::stoi(argv[3]);
+        if (argc > 4) tile_size = std::stoi(argv[4]);
+        if (argc > 5) overlap = std::stoi(argv[5]);
+        if (argc > 6) dz_level = std::stoi(argv[6]);
+        if (argc > 7) dz_col = std::stoi(argv[7]);
+        if (argc > 8) dz_row = std::stoi(argv[8]);
     }
 
-    DeepZoomGenerator slide_handler(argv[1], 254, 1, false,
+    DeepZoomGenerator slide_handler(argv[1], tile_size, overlap, false,
                                     format == "png" ? DeepZoomGenerator::ImageFormat::PNG :
                                                       DeepZoomGenerator::ImageFormat::JPG,
                                     format == "jpg" ? std::clamp(quality / 100.f, 0.f, 1.f) : 0.75f);
@@ -46,8 +58,14 @@ int main(int argc, char* argv[])
 
     std::cout << slide_handler.get_dzi() << std::endl;
     std::cout << "icc_profile size: " << slide_handler.get_icc_profile().size() << std::endl;
+    std::cout << "dz_levels: " << slide_handler.level_count() << std::endl;
+    for (auto i = 0; i < slide_handler.level_count(); i++)
+    {
+        auto [w, h] = slide_handler.level_tiles()[i];
+        std::cout << "Level " << i << ": (Rows: " << w << ", Cols: " << h << ")" << std::endl;
+    }
 
-    auto const& tile = slide_handler.get_tile(slide_handler.level_count() / 2, 0, 0, true);
+    auto const& tile = slide_handler.get_tile(dz_level, dz_col, dz_row, true);
     std::cout << "data:image/" + format + ";base64," + Base64_Encode(tile.data(), tile.size()) << std::endl;
 
     // // output without icc
