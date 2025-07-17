@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <iterator>
 #include <bit>
+#include <cstdint>
 
 extern "C"
 {
@@ -49,9 +50,31 @@ DeepZoomGenerator::DeepZoomGenerator(std::string filepath, int tile_size, int ov
         return;
     }
 
-    // TODO: iterate through scenes to find the largest one as main scene in case of first scene is label or macro
+    // iterate through scenes to find the largest one as main scene in case of first scene is label or macro
+    int main_scene_index = -1;
+    int64_t max_pixels = 0;
+    for (auto i = 0; i < scene_count; i++)
+    {
+        auto scene = m_slide->getScene(i);
+        if (scene && scene->getNumZoomLevels() > 0)
+        {
+            auto [sx, sy, sw, sh] = m_slide->getScene(i)->getRect();
+            auto pixels = static_cast<int64_t>(sw) * sh * scene->getNumZSlices() * scene->getNumTFrames();
+            if (pixels > max_pixels)
+            {
+                max_pixels = pixels;
+                main_scene_index = i;
+            }
+        }
+    }
+    if (main_scene_index < 0)
+    {
+        printf("No valid scenes found in slide: %s\n", filepath.c_str());
+        m_slide = nullptr;
+        return;
+    }
 
-    auto scene = m_slide->getScene(0);
+    auto scene = m_slide->getScene(main_scene_index);
     if (!scene)
     {
         printf("Failed to get scene from slide: %s\n", filepath.c_str());
