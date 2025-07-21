@@ -30,6 +30,8 @@ Please notice the `openslide`'s license is LGPL-2.1.
 
 Current `openslide` version: 4.0.0.8.
 
+You can also use this [`vendors` branch](https://github.com/Harold2017/openslide_more_vendors/tree/vendors), which supports more image formats and keeps tracking the main branch of official `openslide`. To build the `vendors` branch, you may try this [`openslide-bin`](https://github.com/Harold2017/openslide-bin) fork and follow the `SDPC.md` to easily build the `openslide` library (with python wheels) within a docker container.
+
 ### `dz_qupath/DeepZoomGenerator`
 
 Implement similar functionality as `openslide`'s `DeepZoomGenerator` with [`QuPath`](https://github.com/qupath/qupath) and [`Bioformats`](https://github.com/ome/bioformats) to support more image formats.
